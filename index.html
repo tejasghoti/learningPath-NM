@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuraMach Scholarship Matcher</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg: #F9FAFB;
+            --card-bg: #FFFFFF;
+            --text-main: #111827;
+            --text-muted: #6B7280;
+            --border: #E5E7EB;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--text-muted);
+            margin-top: 0;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            margin-bottom: 2rem;
+            border: 1px solid var(--border);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group.full-width {
+            grid-column: span 2;
+        }
+
+        label {
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        input, select {
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+            margin-top: 1rem;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: #9CA3AF;
+            cursor: wait;
+        }
+
+        /* Results Area */
+        #results {
+            display: none;
+        }
+
+        .scholarship-tag {
+            display: inline-block;
+            background-color: #EEF2FF;
+            color: var(--primary);
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .stats {
+            background-color: #F8FAFC;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid #E2E8F0;
+        }
+
+        .step-card {
+            border-left: 4px solid var(--primary);
+            padding: 1rem;
+            background-color: #F9FAFB;
+            margin-bottom: 1rem;
+            border-radius: 0 8px 8px 0;
+            border-top: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .step-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .step-number {
+            background-color: var(--primary);
+            color: white;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .docs-list {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .loader {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+            color: var(--primary);
+            font-weight: 500;
+        }
+        
+        .error-msg {
+            display: none;
+            background-color: #FEF2F2;
+            color: #B91C1C;
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #F87171;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>NeuraMach LearningPath</h1>
+        <p>AI-Powered Scholarship Matching & Roadmap Generator</p>
+    </div>
+
+    <div class="card">
+        <h3>Student Profile</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: -10px; margin-bottom: 20px;">
+            Enter your details below to find matched scholarships and generate your personalized application roadmap via Gemini AI.
+        </p>
+
+        <form id="matchForm">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Gender</label>
+                    <select id="gender" required>
+                        <option value="MALE">Male</option>
+                        <option value="FEMALE">Female</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Category (Caste)</label>
+                    <select id="caste" required>
+                        <option value="GEN">General</option>
+                        <option value="OBC">OBC</option>
+                        <option value="SC">SC</option>
+                        <option value="ST">ST</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Annual Family Income (₹)</label>
+                    <input type="number" id="income" value="200000" min="0" required>
+                </div>
+                <div class="form-group">
+                    <label>State</label>
+                    <select id="state" required>
+                        <option value="MAHARASHTRA">Maharashtra</option>
+                        <option value="DELHI">Delhi</option>
+                        <option value="KARNATAKA">Karnataka</option>
+                        <option value="ALL">Other</option>
+                    </select>
+                </div>
+                <div class="form-group full-width">
+                    <label>Course Name (e.g., B.Tech, MBBS, B.A.)</label>
+                    <input type="text" id="course" value="B.Tech" required>
+                </div>
+            </div>
+            <button type="submit" id="submitBtn">Generate My AI Roadmap</button>
+        </form>
+    </div>
+
+    <div id="errorBox" class="error-msg"></div>
+
+    <div id="loader" class="loader">
+        <svg style="animation: spin 1s linear infinite; height: 1.5rem; width: 1.5rem; margin: 0 auto 0.5rem auto;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Analyzing profile & generating roadmap with Gemini AI...
+    </div>
+
+    <div id="results" class="card">
+        <div class="scholarship-tag" id="matchBadge">Matches Found!</div>
+        <h2 style="margin-top: 0;">Your Personalized Roadmap</h2>
+        
+        <div class="stats" id="statsBox">
+            <!-- Filled via JS -->
+        </div>
+
+        <div id="stepsContainer">
+            <!-- Steps filled via JS -->
+        </div>
+        
+        <h4 style="margin-top: 2rem;">💡 General Tips</h4>
+        <ul id="tipsList" class="docs-list" style="color: var(--text-main)">
+            <!-- Tips filled via JS -->
+        </ul>
+    </div>
+</div>
+
+<style>
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+
+<script>
+    document.getElementById('matchForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const btn = document.getElementById('submitBtn');
+        const loader = document.getElementById('loader');
+        const results = document.getElementById('results');
+        const errorBox = document.getElementById('errorBox');
+        
+        // Reset UI
+        btn.disabled = true;
+        btn.innerText = "Processing...";
+        results.style.display = 'none';
+        errorBox.style.display = 'none';
+        loader.style.display = 'block';
+
+        const payload = {
+            gender: document.getElementById('gender').value,
+            caste: document.getElementById('caste').value,
+            income: parseInt(document.getElementById('income').value),
+            state: document.getElementById('state').value,
+            course: document.getElementById('course').value.toUpperCase()
+        };
+
+        try {
+            // First ensure we have seed data (silent fail if already exists)
+            await fetch('http://127.0.0.1:8005/seed', { method: 'POST' }).catch(() => {});
+
+            // Now hit the match endpoint
+            const response = await fetch('http://127.0.0.1:8005/match', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.detail ? JSON.stringify(data.detail) : 'Server error');
+            }
+
+            renderResults(data);
+            
+        } catch (err) {
+            errorBox.innerText = `Error connecting to server: ${err.message}. Make sure your FastAPI backend is running on port 8005!`;
+            errorBox.style.display = 'block';
+        } finally {
+            loader.style.display = 'none';
+            btn.disabled = false;
+            btn.innerText = "Generate My AI Roadmap";
+        }
+    });
+
+    function renderResults(data) {
+        document.getElementById('results').style.display = 'block';
+        
+        const { total_matched, ai_roadmap } = data;
+        const rm = ai_roadmap.roadmap || ai_roadmap.fallback_roadmap.roadmap;
+        const tips = ai_roadmap.general_tips || ai_roadmap.fallback_roadmap.general_tips;
+        const summary = ai_roadmap.student_summary || ai_roadmap.fallback_roadmap.student_summary;
+
+        document.getElementById('matchBadge').innerText = `${total_matched} Scholarships Matched!`;
+        
+        document.getElementById('statsBox').innerHTML = `
+            <div><strong>Profile Summary:</strong> ${summary}</div>
+            <div style="margin-top: 0.5rem; color: var(--primary)"><strong>Priority Action:</strong> ${ai_roadmap.priority_scholarship || "Start applying immediately"}</div>
+        `;
+
+        const stepsHtml = rm.map(step => `
+            <div class="step-card">
+                <div class="step-title">
+                    <div class="step-number">${step.step_number}</div>
+                    ${step.title}
+                </div>
+                <p style="margin: 0.5rem 0; font-size: 0.95rem;">${step.description}</p>
+                <div style="margin-top: 0.75rem;">
+                    <strong>Documents to prepare:</strong>
+                    <ul class="docs-list">
+                        ${step.documents_needed.map(doc => `<li>${doc}</li>`).join('')}
+                    </ul>
+                </div>
+                <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--primary);">
+                    ⏱️ Estimated time: ${step.estimated_time}
+                </div>
+            </div>
+        `).join('');
+        
+        document.getElementById('stepsContainer').innerHTML = stepsHtml;
+        
+        document.getElementById('tipsList').innerHTML = tips.map(tip => `<li>${tip}</li>`).join('');
+    }
+</script>
+</body>
+</html>
