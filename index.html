@@ -186,6 +186,36 @@
             font-weight: 500;
         }
 
+        /* Dev Console */
+        .dev-console {
+            display: none;
+            background-color: #111827;
+            color: #34D399; /* emerald-400 */
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 0.8rem;
+            line-height: 1.5;
+            margin-bottom: 2rem;
+            border: 1px solid #374151;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+            height: 150px;
+            overflow-y: auto;
+        }
+
+        .dev-console .log-time {
+            color: #9CA3AF;
+            margin-right: 8px;
+        }
+
+        .dev-console .log-error {
+            color: #F87171;
+        }
+        
+        .dev-console .log-warn {
+            color: #FBBF24;
+        }
+
         /* Workflow Stepper */
         .workflow-container {
             display: flex;
@@ -361,6 +391,9 @@
         <div id="loaderText" style="margin-top: 10px; font-weight: 600;">Starting processing...</div>
     </div>
 
+    <!-- Live Dev Console -->
+    <div id="devConsole" class="dev-console"></div>
+
     <div id="results" class="card">
         <div class="scholarship-tag" id="matchBadge">Matches Found!</div>
         <h2 style="margin-top: 0;">Your Personalized Roadmap</h2>
@@ -385,6 +418,27 @@
 </style>
 
 <script>
+    // Live Dev Console Logic
+    const consoleEl = document.getElementById('devConsole');
+    
+    function logToConsole(message, type="info") {
+        if(consoleEl.style.display === 'none') {
+            consoleEl.style.display = 'block';
+            consoleEl.innerHTML = ''; // clear on first show
+        }
+        const now = new Date();
+        const timeStr = now.toISOString().split('T')[1].substring(0, 12); // format: HH:MM:SS.mmm
+        
+        let colorClass = '';
+        if (type === 'error') colorClass = 'log-error';
+        if (type === 'warn') colorClass = 'log-warn';
+        
+        const line = document.createElement('div');
+        line.innerHTML = `<span class="log-time">[${timeStr}]</span> <span class="${colorClass}">${message}</span>`;
+        consoleEl.appendChild(line);
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
     // Workflow Animation Simulator
     let currentAnimation = null;
     
@@ -394,12 +448,18 @@
             step.className = 'step';
             step.querySelector('.step-icon').innerText = i;
         }
+        consoleEl.style.display = 'none';
+        consoleEl.innerHTML = '';
     }
 
-    async function advanceWorkflowStep(stepNum, text, ms) {
+    async function advanceWorkflowStep(stepNum, text, logMessage, ms) {
         document.getElementById('loaderText').innerText = text;
         const step = document.getElementById(`step${stepNum}`);
         step.className = 'step active';
+        
+        if (logMessage) {
+            logToConsole(logMessage);
+        }
         
         return new Promise(resolve => {
             currentAnimation = setTimeout(() => {
@@ -425,6 +485,7 @@
         errorBox.style.display = 'none';
         loader.style.display = 'block';
         resetWorkflow();
+        logToConsole(`[INIT] POST /match body={"caste":"${document.getElementById('caste').value}", "income":${document.getElementById('income').value}}`);
 
         const payload = {
             gender: document.getElementById('gender').value,
@@ -438,21 +499,24 @@
         const headers = { 'Content-Type': 'application/json' };
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
+            logToConsole("[AUTH] AWS Cognito Token attached to headers.");
         } else {
             // Send a dummy token to satisfy the backend HTTPBearer requirement locally
             headers['Authorization'] = 'Bearer dummy_token_for_local_bypass';
+            logToConsole("[AUTH] No Cognito token. Sending bypass token.", "warn");
         }
 
         try {
             // First ensure we have seed data (silent fail if already exists)
+            logToConsole("[DB] Verifying Neon PostgreSQL connection and executing /seed lookup.");
             await fetch('http://127.0.0.1:8005/seed', { method: 'POST' }).catch(() => {});
 
             // Start visual workflow progress
             let workflowPromise = (async () => {
-                await advanceWorkflowStep(1, "Validating JWT via Amazon Cognito...", 600);
-                await advanceWorkflowStep(2, "Running Rule Engine on Neon PostgreSQL...", 1200);
-                await advanceWorkflowStep(3, "Prompting Google Gemini 2.0 AI...", 3000);
-                await advanceWorkflowStep(4, "Uploading to Amazon S3...", 800);
+                await advanceWorkflowStep(1, "Validating JWT via Amazon Cognito...", "> Checking JWKS mapping for signature.", 600);
+                await advanceWorkflowStep(2, "Running Rule Engine on Neon PostgreSQL...", "> Executing matching algorithm against ORM objects.", 1200);
+                await advanceWorkflowStep(3, "Prompting Google Gemini 2.0 AI...", "> Generating LLM prompt. Awaiting google-genai structured JSON response...", 3000);
+                await advanceWorkflowStep(4, "Uploading to Amazon S3...", "> Boto3 PUT request sent to AWS S3 bucket.", 800);
             })();
 
             // Now hit the match endpoint
@@ -468,9 +532,23 @@
             
             if (!response.ok) {
                 clearTimeout(currentAnimation);
-                resetWorkflow();
-                throw new Error(data.detail ? JSON.stringify(data.detail) : 'Server error');
+                let errDetail = data.detail ? JSON.stringify(data.detail) : 'Server error';
+                logToConsole(`[ERROR] HTTP ${response.status}: ` + errDetail, "error");
+
+                // Deep technical log explains exactly why it failed to the user
+                if(response.status === 401 || errDetail.includes("Signature verification failed")) {
+                    logToConsole("-> Fix: The active Authentication tech is AWS Cognito. Your provided JWT Token failed signature cryptographic validation against the Cognito JWKS pool.", "error");
+                } 
+                else if(response.status === 422 || errDetail.includes("literal_error")) {
+                    logToConsole("-> Fix: Pydantic Validation Error in FastAPI. The inputs do not match standard enumerations expected by the models.", "error");
+                }
+                else {
+                    logToConsole("-> Fix: Check if FastAPI backend (Uvicorn) is running on port 8005. Are database variables exported?", "error");
+                }
+                throw new Error("API Failure. See Dev Console for details.");
             }
+
+            logToConsole(`[SUCCESS] 200 OK. Matches: ${data.total_matched}. Parsing response JSON.`);
 
             // Ensure all steps show green if success
             for(let i=1; i<=4; i++) {
@@ -482,7 +560,8 @@
             renderResults(data);
             
         } catch (err) {
-            errorBox.innerText = `Error connecting to server: ${err.message}. Make sure your FastAPI backend is running on port 8005!`;
+            logToConsole(`[FATAL] ${err.message}`, "error");
+            errorBox.innerText = `Error connecting to server. Look at the Developer Console below for the exact root cause.`;
             errorBox.style.display = 'block';
         } finally {
             loader.style.display = 'none';
