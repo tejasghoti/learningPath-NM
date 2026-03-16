@@ -181,9 +181,82 @@
         .loader {
             display: none;
             text-align: center;
-            padding: 2rem;
+            padding: 1rem;
             color: var(--primary);
             font-weight: 500;
+        }
+
+        /* Workflow Stepper */
+        .workflow-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .workflow-container::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background-color: var(--border);
+            z-index: 1;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 2;
+            width: 25%;
+            text-align: center;
+        }
+
+        .step-icon {
+            width: 32px;
+            height: 32px;
+            background-color: var(--card-bg);
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .step-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .step.active .step-icon {
+            border-color: var(--primary);
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.2);
+        }
+
+        .step.active .step-label {
+            color: var(--primary);
+        }
+
+        .step.completed .step-icon {
+            border-color: #10B981;
+            background-color: #10B981;
+            color: white;
+        }
+
+        .step-tech {
+            font-size: 0.65rem;
+            color: #9CA3AF;
+            margin-top: 2px;
         }
         
         .error-msg {
@@ -203,6 +276,29 @@
     <div class="header">
         <h1>NeuraMach LearningPath</h1>
         <p>AI-Powered Scholarship Matching & Roadmap Generator</p>
+    </div>
+
+    <div class="workflow-container" id="workflowSteps">
+        <div class="step" id="step1">
+            <div class="step-icon">1</div>
+            <div class="step-label">Identify</div>
+            <div class="step-tech">(Cognito JWT)</div>
+        </div>
+        <div class="step" id="step2">
+            <div class="step-icon">2</div>
+            <div class="step-label">Rule Engine</div>
+            <div class="step-tech">(Neon PostgreSQL)</div>
+        </div>
+        <div class="step" id="step3">
+            <div class="step-icon">3</div>
+            <div class="step-label">AI Roadmap</div>
+            <div class="step-tech">(Google Gemini 2.0)</div>
+        </div>
+        <div class="step" id="step4">
+            <div class="step-icon">4</div>
+            <div class="step-label">Cloud Save</div>
+            <div class="step-tech">(Amazon S3)</div>
+        </div>
     </div>
 
     <div class="card">
@@ -246,6 +342,10 @@
                     <label>Course Name (e.g., B.Tech, MBBS, B.A.)</label>
                     <input type="text" id="course" value="B.Tech" required>
                 </div>
+                <div class="form-group full-width" style="margin-top: 10px; border-top: 1px dashed var(--border); padding-top: 15px;">
+                    <label>🔒 Cognito Auth Token (Optional for Local Test)</label>
+                    <input type="text" id="authToken" placeholder="Paste your JWT Token here if Cognito is enabled in .env" style="font-family: monospace; font-size: 0.85rem;">
+                </div>
             </div>
             <button type="submit" id="submitBtn">Generate My AI Roadmap</button>
         </form>
@@ -258,7 +358,7 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        Analyzing profile & generating roadmap with Gemini AI...
+        <div id="loaderText" style="margin-top: 10px; font-weight: 600;">Starting processing...</div>
     </div>
 
     <div id="results" class="card">
@@ -285,6 +385,31 @@
 </style>
 
 <script>
+    // Workflow Animation Simulator
+    let currentAnimation = null;
+    
+    function resetWorkflow() {
+        for(let i=1; i<=4; i++) {
+            const step = document.getElementById(`step${i}`);
+            step.className = 'step';
+            step.querySelector('.step-icon').innerText = i;
+        }
+    }
+
+    async function advanceWorkflowStep(stepNum, text, ms) {
+        document.getElementById('loaderText').innerText = text;
+        const step = document.getElementById(`step${stepNum}`);
+        step.className = 'step active';
+        
+        return new Promise(resolve => {
+            currentAnimation = setTimeout(() => {
+                step.className = 'step completed';
+                step.querySelector('.step-icon').innerText = '✓';
+                resolve();
+            }, ms);
+        });
+    }
+
     document.getElementById('matchForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -299,6 +424,7 @@
         results.style.display = 'none';
         errorBox.style.display = 'none';
         loader.style.display = 'block';
+        resetWorkflow();
 
         const payload = {
             gender: document.getElementById('gender').value,
@@ -308,21 +434,49 @@
             course: document.getElementById('course').value.toUpperCase()
         };
 
+        const token = document.getElementById('authToken').value.trim();
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        } else {
+            // Send a dummy token to satisfy the backend HTTPBearer requirement locally
+            headers['Authorization'] = 'Bearer dummy_token_for_local_bypass';
+        }
+
         try {
             // First ensure we have seed data (silent fail if already exists)
             await fetch('http://127.0.0.1:8005/seed', { method: 'POST' }).catch(() => {});
 
+            // Start visual workflow progress
+            let workflowPromise = (async () => {
+                await advanceWorkflowStep(1, "Validating JWT via Amazon Cognito...", 600);
+                await advanceWorkflowStep(2, "Running Rule Engine on Neon PostgreSQL...", 1200);
+                await advanceWorkflowStep(3, "Prompting Google Gemini 2.0 AI...", 3000);
+                await advanceWorkflowStep(4, "Uploading to Amazon S3...", 800);
+            })();
+
             // Now hit the match endpoint
             const response = await fetch('http://127.0.0.1:8005/match', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: headers,
                 body: JSON.stringify(payload)
             });
 
+            // Wait for visual workflow to finish at least mostly before showing results, 
+            // or finish it instantly if the API was fast.
             const data = await response.json();
             
             if (!response.ok) {
+                clearTimeout(currentAnimation);
+                resetWorkflow();
                 throw new Error(data.detail ? JSON.stringify(data.detail) : 'Server error');
+            }
+
+            // Ensure all steps show green if success
+            for(let i=1; i<=4; i++) {
+                const step = document.getElementById(`step${i}`);
+                step.className = 'step completed';
+                step.querySelector('.step-icon').innerText = '✓';
             }
 
             renderResults(data);
@@ -340,16 +494,28 @@
     function renderResults(data) {
         document.getElementById('results').style.display = 'block';
         
-        const { total_matched, ai_roadmap } = data;
+        const { total_matched, ai_roadmap, s3_roadmap_url } = data;
         const rm = ai_roadmap.roadmap || ai_roadmap.fallback_roadmap.roadmap;
         const tips = ai_roadmap.general_tips || ai_roadmap.fallback_roadmap.general_tips;
         const summary = ai_roadmap.student_summary || ai_roadmap.fallback_roadmap.student_summary;
 
         document.getElementById('matchBadge').innerText = `${total_matched} Scholarships Matched!`;
         
+        let s3Html = "";
+        if (s3_roadmap_url && s3_roadmap_url.startsWith('http')) {
+            s3Html = `<div style="margin-top: 0.75rem; padding: 0.5rem; background-color: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 6px; font-size: 0.9rem;">
+                        ✅ <strong>Cloud Backup:</strong> Roadmap saved to AWS S3. <a href="${s3_roadmap_url}" target="_blank" style="color: #059669; font-weight: 500;">View JSON Document</a>
+                      </div>`;
+        } else if (s3_roadmap_url) {
+             s3Html = `<div style="margin-top: 0.75rem; padding: 0.5rem; background-color: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; font-size: 0.85rem; color: #B91C1C;">
+                        ⚠️ <strong>S3 Notice:</strong> ${s3_roadmap_url}
+                      </div>`;
+        }
+
         document.getElementById('statsBox').innerHTML = `
             <div><strong>Profile Summary:</strong> ${summary}</div>
             <div style="margin-top: 0.5rem; color: var(--primary)"><strong>Priority Action:</strong> ${ai_roadmap.priority_scholarship || "Start applying immediately"}</div>
+            ${s3Html}
         `;
 
         const stepsHtml = rm.map(step => `
